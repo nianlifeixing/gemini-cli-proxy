@@ -33,13 +33,21 @@ export all_proxy=socks5://127.0.0.1:7890
 npm install -g @google/gemini-cli
 ```
 
-安装后，使用 `gemini` 命令运行 Gemini CLI。你需要首先启动一次，进行登录等初始化配置
+安装后，使用 `gemini` 命令运行 Gemini CLI。你需要首先启动一次，进行登录等初始化配置。
+
+配置完成后，请确认你可以成功运行以下命令：
+
+```bash
+gemini -p "Hello, Gemini"
+```
 
 ### 启动 Gemini CLI Proxy
 
 ```bash
 uv run gemini-cli-proxy
 ```
+
+Gemini CLI Proxy 默认监听 `8765` 端口，你可以通过 `--port` 参数自定义启动端口。
 
 启动后，使用 curl 测试服务是否正常：
 
@@ -77,11 +85,15 @@ print(response.choices[0].message.content)
 
 #### Cherry Studio
 
-在 Cherry Studio 设置中：
-- Provider: OpenAI
-- Base URL: `http://localhost:8765/v1`
-- API Key: 可填任意字符串
-- Model: `gemini-2.5-pro` 或 `gemini-2.5-flash`
+在 Cherry Studio 设置中添加 Model Provider：
+- Provider Type 选择: OpenAI
+- API Host 填写: `http://localhost:8765`
+- API Key 填写: 可填任意字符串
+- Model Name 填写: `gemini-2.5-pro` 或 `gemini-2.5-flash`
+
+![Cherry Studio Config 1](./img/cherry-studio-1.jpg)
+
+![Cherry Studio Config 2](./img/cherry-studio-2.jpg)
 
 ## ⚙️ 配置选项
 

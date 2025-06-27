@@ -35,11 +35,19 @@ npm install -g @google/gemini-cli
 
 After installation, use the `gemini` command to run Gemini CLI. You need to start it once first for login and initial configuration.
 
+After configuration is complete, please confirm you can successfully run the following command:
+
+```bash
+gemini -p "Hello, Gemini"
+```
+
 ### Start Gemini CLI Proxy
 
 ```bash
 uv run gemini-cli-proxy
 ```
+
+Gemini CLI Proxy listens on port `8765` by default. You can customize the startup port with the `--port` parameter.
 
 After startup, test the service with curl:
 
@@ -77,11 +85,15 @@ print(response.choices[0].message.content)
 
 #### Cherry Studio
 
-In Cherry Studio settings:
-- Provider: OpenAI
-- Base URL: `http://localhost:8765/v1`
+Add Model Provider in Cherry Studio settings:
+- Provider Type: OpenAI
+- API Host: `http://localhost:8765`
 - API Key: Any string works
-- Model: `gemini-2.5-pro` or `gemini-2.5-flash`
+- Model Name: `gemini-2.5-pro` or `gemini-2.5-flash`
+
+![Cherry Studio Config 1](./img/cherry-studio-1.jpg)
+
+![Cherry Studio Config 2](./img/cherry-studio-2.jpg)
 
 ## ⚙️ Configuration Options
 
