@@ -125,12 +125,6 @@ async def chat_completions(
     """
     logger.info(f"Received chat completion request: model={chat_request.model}, stream={chat_request.stream}")
     
-    # Extract user locale from Accept-Language header
-    accept_language = request.headers.get("accept-language", "en-US")
-    # Parse the first locale from the header (e.g., "zh-CN,zh;q=0.9,en;q=0.8" -> "zh-CN")
-    user_locale = accept_language.split(",")[0].strip()
-    logger.debug(f"User locale detected: {user_locale}")
-
     try:
         # Validate model
         if chat_request.model not in config.supported_models:
@@ -147,10 +141,10 @@ async def chat_completions(
         
         # Handle streaming request
         if chat_request.stream:
-            return await openai_adapter.chat_completion_stream(chat_request, user_locale=user_locale)
+            return await openai_adapter.chat_completion_stream(chat_request)
         
         # Handle non-streaming request
-        response = await openai_adapter.chat_completion(chat_request, user_locale=user_locale)
+        response = await openai_adapter.chat_completion(chat_request)
         return response
         
     except HTTPException:

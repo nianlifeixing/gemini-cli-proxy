@@ -26,18 +26,17 @@ logger = logging.getLogger('gemini_cli_proxy')
 class OpenAIAdapter:
     """OpenAI format adapter"""
     
-    async def chat_completion(self, request: ChatCompletionRequest, user_locale: str = "en-US") -> ChatCompletionResponse:
+    async def chat_completion(self, request: ChatCompletionRequest) -> ChatCompletionResponse:
         """
         Handle chat completion request (non-streaming)
         
         Args:
             request: OpenAI format chat completion request
-            user_locale: User locale from Accept-Language header
             
         Returns:
             OpenAI format chat completion response
         """
-        logger.info(f"Processing chat completion request, model: {request.model}, messages: {len(request.messages)}, locale: {user_locale}")
+        logger.info(f"Processing chat completion request, model: {request.model}, messages: {len(request.messages)}")
         
         try:
             # Call Gemini CLI
@@ -45,8 +44,7 @@ class OpenAIAdapter:
                 messages=request.messages,
                 model=request.model,
                 temperature=request.temperature,
-                max_tokens=request.max_tokens,
-                user_locale=user_locale
+                max_tokens=request.max_tokens
             )
             
             # Build OpenAI format response
@@ -71,18 +69,17 @@ class OpenAIAdapter:
             logger.error(f"Error processing chat completion request: {e}")
             raise
     
-    async def chat_completion_stream(self, request: ChatCompletionRequest, user_locale: str = "en-US") -> StreamingResponse:
+    async def chat_completion_stream(self, request: ChatCompletionRequest) -> StreamingResponse:
         """
         Handle streaming chat completion request
         
         Args:
             request: OpenAI format chat completion request
-            user_locale: User locale from Accept-Language header
             
         Returns:
             Streaming response
         """
-        logger.info(f"Processing streaming chat completion request, model: {request.model}, messages: {len(request.messages)}, locale: {user_locale}")
+        logger.info(f"Processing streaming chat completion request, model: {request.model}, messages: {len(request.messages)}")
         
         async def generate_stream():
             """Generate streaming response data"""
@@ -95,8 +92,7 @@ class OpenAIAdapter:
                     messages=request.messages,
                     model=request.model,
                     temperature=request.temperature,
-                    max_tokens=request.max_tokens,
-                    user_locale=user_locale
+                    max_tokens=request.max_tokens
                 )
                 
                 # Send data chunks one by one
