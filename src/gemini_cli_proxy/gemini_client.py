@@ -60,6 +60,7 @@ class GeminiClient:
     async def chat_completion(
         self,
         messages: List[ChatMessage],
+        model: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         user_locale: str = "en-US",
@@ -70,6 +71,7 @@ class GeminiClient:
         
         Args:
             messages: List of chat messages
+            model: Model name to use
             temperature: Temperature parameter
             max_tokens: Maximum number of tokens
             user_locale: User locale for response language guidance
@@ -84,12 +86,13 @@ class GeminiClient:
         """
         async with self.semaphore:
             return await self._execute_gemini_command(
-                messages, temperature, max_tokens, user_locale, **kwargs
+                messages, model, temperature, max_tokens, user_locale, **kwargs
             )
     
     async def chat_completion_stream(
         self,
         messages: List[ChatMessage],
+        model: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         user_locale: str = "en-US",
@@ -100,6 +103,7 @@ class GeminiClient:
         
         Args:
             messages: List of chat messages
+            model: Model name to use
             temperature: Temperature parameter
             max_tokens: Maximum number of tokens
             user_locale: User locale for response language guidance
@@ -110,7 +114,7 @@ class GeminiClient:
         """
         # First get complete response
         full_response = await self.chat_completion(
-            messages, temperature, max_tokens, user_locale, **kwargs
+            messages, model, temperature, max_tokens, user_locale, **kwargs
         )
         
         # Split by lines and yield one by one
@@ -124,6 +128,7 @@ class GeminiClient:
     async def _execute_gemini_command(
         self,
         messages: List[ChatMessage],
+        model: str,
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
         user_locale: str = "en-US",
@@ -134,6 +139,7 @@ class GeminiClient:
         
         Args:
             messages: List of chat messages
+            model: Model name to use
             temperature: Temperature parameter
             max_tokens: Maximum number of tokens
             user_locale: User locale for response language guidance
@@ -146,7 +152,8 @@ class GeminiClient:
         prompt, temp_files = self._build_prompt_with_images(messages, user_locale)
         
         cmd_args = [config.gemini_command]
-        cmd_args.extend(["--prompt", prompt])
+        cmd_args.extend(["-m", model])
+        cmd_args.extend(["-p", prompt])
         
         # Note: Real gemini CLI doesn't support temperature and max_tokens parameters
         # We ignore these parameters here but log them

@@ -43,6 +43,7 @@ class OpenAIAdapter:
             # Call Gemini CLI
             response_text = await gemini_client.chat_completion(
                 messages=request.messages,
+                model=request.model,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens,
                 user_locale=user_locale
@@ -92,6 +93,7 @@ class OpenAIAdapter:
                 # Get streaming data generator
                 stream_generator = gemini_client.chat_completion_stream(
                     messages=request.messages,
+                    model=request.model,
                     temperature=request.temperature,
                     max_tokens=request.max_tokens,
                     user_locale=user_locale
