@@ -7,10 +7,8 @@ Handles interaction with Gemini CLI tool
 import asyncio
 import logging
 import os
-import tempfile
 import uuid
 import base64
-import re
 from typing import List, Optional, AsyncGenerator, Tuple
 from .models import ChatMessage
 from .config import config
@@ -192,13 +190,13 @@ class GeminiClient:
             
         except asyncio.TimeoutError:
             logger.error(f"Gemini CLI command timeout ({config.timeout}s)")
-            raise RuntimeError(f"Gemini CLI execution timeout ({config.timeout} seconds), please retry later or check your network connection")
+            raise RuntimeError(f"Gemini CLI execution timeout ({config.timeout} seconds), please retry later or check your network connection") from None
         except RuntimeError:
             # Re-raise already processed RuntimeError
             raise
         except Exception as e:
             logger.error(f"Error executing Gemini CLI command: {e}")
-            raise RuntimeError(f"Error executing Gemini CLI command: {str(e)}")
+            raise RuntimeError(f"Error executing Gemini CLI command: {str(e)}") from e
         finally:
             # Clean up temporary files (skip in debug mode)
             if not config.debug:
@@ -316,7 +314,7 @@ class GeminiClient:
             
         except Exception as e:
             logger.error(f"Error saving base64 image: {e}")
-            raise ValueError(f"Failed to save base64 image: {e}")
+            raise ValueError(f"Failed to save base64 image: {e}") from e
 
     def _build_prompt(self, messages: List[ChatMessage]) -> str:
         """

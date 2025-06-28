@@ -44,7 +44,6 @@ limiter = Limiter(key_func=get_remote_address)
 async def lifespan(app: FastAPI):
     """Application lifecycle management"""
     # Ensure logging level is applied after uvicorn starts
-    import logging
     logging.getLogger('gemini_cli_proxy').setLevel(getattr(logging, config.log_level.upper()))
     
     logger.info(f"Starting Gemini CLI Proxy v{__version__}")
