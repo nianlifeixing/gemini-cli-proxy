@@ -20,7 +20,7 @@ from .models import (
 )
 from .gemini_client import gemini_client
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('gemini_cli_proxy')
 
 
 class OpenAIAdapter:
@@ -42,6 +42,7 @@ class OpenAIAdapter:
             # Call Gemini CLI
             response_text = await gemini_client.chat_completion(
                 messages=request.messages,
+                model=request.model,
                 temperature=request.temperature,
                 max_tokens=request.max_tokens
             )
@@ -89,6 +90,7 @@ class OpenAIAdapter:
                 # Get streaming data generator
                 stream_generator = gemini_client.chat_completion_stream(
                     messages=request.messages,
+                    model=request.model,
                     temperature=request.temperature,
                     max_tokens=request.max_tokens
                 )

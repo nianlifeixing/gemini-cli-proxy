@@ -112,11 +112,10 @@ gemini-cli-proxy --help
 Available options:
 - `--host`: Server host address (default: 127.0.0.1)
 - `--port`: Server port (default: 8765)
-- `--log-level`: Log level (debug/info/warning/error/critical)
 - `--rate-limit`: Max requests per minute (default: 60)
 - `--max-concurrency`: Max concurrent subprocesses (default: 4)
 - `--timeout`: Gemini CLI command timeout in seconds (default: 30.0)
-- `--debug`: Enable debug mode
+- `--debug`: Enable debug mode (enables debug logging and file watching)
 
 ## ❓ FAQ
 

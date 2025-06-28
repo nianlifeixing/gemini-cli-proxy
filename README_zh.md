@@ -112,11 +112,10 @@ gemini-cli-proxy --help
 可用选项：
 - `--host`: 服务器主机地址 (默认: 127.0.0.1)
 - `--port`: 服务器端口 (默认: 8765)
-- `--log-level`: 日志级别 (debug/info/warning/error/critical)
 - `--rate-limit`: 每分钟最大请求数 (默认: 60)
 - `--max-concurrency`: 最大并发子进程数 (默认: 4)
 - `--timeout`: Gemini CLI 命令超时时间，单位秒 (默认: 30.0)
-- `--debug`: 启用调试模式
+- `--debug`: 启用调试模式 (启用调试日志和文件监控)
 
 ## ❓ 常见问题
 

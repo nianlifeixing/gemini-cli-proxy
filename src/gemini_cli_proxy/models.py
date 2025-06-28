@@ -10,10 +10,17 @@ import time
 import uuid
 
 
+class ChatContentPart(BaseModel):
+    """Chat content part model for vision support"""
+    type: Literal["text", "image_url"]
+    text: Optional[str] = None
+    image_url: Optional[Dict[str, str]] = None  # {"url": "..."}
+
+
 class ChatMessage(BaseModel):
     """Chat message model"""
     role: Literal["system", "user", "assistant"]
-    content: str
+    content: Union[str, List[ChatContentPart]]
 
 
 class ChatCompletionRequest(BaseModel):
