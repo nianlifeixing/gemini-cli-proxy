@@ -20,7 +20,7 @@ class Config:
         
         # Gemini CLI configuration
         self.gemini_command: str = "gemini"  # Gemini CLI command path
-        self.timeout: float = 30.0
+        self.timeout: float = 120.0
         
         # Limit configuration
         self.rate_limit: int = 60  # Requests per minute
