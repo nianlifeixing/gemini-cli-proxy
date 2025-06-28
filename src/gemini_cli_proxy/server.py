@@ -120,6 +120,7 @@ async def chat_completions(
     """
     logger.info(f"Received chat completion request: model={chat_request.model}, stream={chat_request.stream}")
     
+
     try:
         # Validate model
         if chat_request.model not in config.supported_models:

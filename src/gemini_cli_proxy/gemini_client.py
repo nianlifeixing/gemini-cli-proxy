@@ -6,7 +6,11 @@ Handles interaction with Gemini CLI tool
 
 import asyncio
 import logging
-from typing import List, Optional, AsyncGenerator
+import os
+import tempfile
+import uuid
+import base64
+from typing import List, Optional, AsyncGenerator, Tuple
 from .models import ChatMessage
 from .config import config
 
@@ -98,13 +102,10 @@ class GeminiClient:
         Returns:
             Command output result
         """
-        # Build command arguments
+        # Build command arguments and get temporary files
+        prompt, temp_files = self._build_prompt_with_images(messages)
+        
         cmd_args = [config.gemini_command]
-        
-        # Build prompt text (simplified implementation: combine all messages)
-        prompt = self._build_prompt(messages)
-        
-        # Use --prompt parameter to pass prompt text
         cmd_args.extend(["--prompt", prompt])
         
         # Note: Real gemini CLI doesn't support temperature and max_tokens parameters
@@ -137,7 +138,7 @@ class GeminiClient:
             
             # Return standard output
             result = stdout.decode('utf-8').strip()
-            logger.debug(f"Command executed successfully, output length: {len(result)}")
+            logger.info(f"Gemini CLI response: {result}")
             return result
             
         except asyncio.TimeoutError:
@@ -146,10 +147,128 @@ class GeminiClient:
         except Exception as e:
             logger.error(f"Error executing Gemini CLI command: {e}")
             raise
+        finally:
+            # Clean up temporary files
+            for temp_file in temp_files:
+                try:
+                    if os.path.exists(temp_file):
+                        os.unlink(temp_file)
+                except Exception as e:
+                    logger.warning(f"Failed to clean up temp file {temp_file}: {e}")
     
+    def _build_prompt_with_images(self, messages: List[ChatMessage]) -> Tuple[str, List[str]]:
+        """
+        Build prompt text with image processing
+        
+        Args:
+            messages: List of chat messages
+            
+        Returns:
+            Tuple of (formatted prompt text, list of temporary file paths)
+        """
+        prompt_parts = []
+        temp_files = []
+        
+        for i, message in enumerate(messages):
+            if isinstance(message.content, str):
+                # Simple string content
+                if message.role == "system":
+                    prompt_parts.append(f"System: {message.content}")
+                elif message.role == "user":
+                    prompt_parts.append(f"User: {message.content}")
+                elif message.role == "assistant":
+                    prompt_parts.append(f"Assistant: {message.content}")
+            else:
+                # List of content parts (vision support)
+                content_parts = []
+                
+                for j, part in enumerate(message.content):
+                    if part.type == "text" and part.text:
+                        content_parts.append(part.text)
+                    elif part.type == "image_url" and part.image_url:
+                        url = part.image_url.get("url", "")
+                        if url.startswith("data:"):
+                            # Process base64 image
+                            temp_file_path = self._save_base64_image(url)
+                            temp_files.append(temp_file_path)
+                            content_parts.append(f"<image>{temp_file_path}</image>")
+                        else:
+                            # For regular URLs, we'll just pass them through for now
+                            # TODO: Download and save remote images if needed
+                            content_parts.append(f"<image>{url}</image>")
+                
+                combined_content = " ".join(content_parts)
+                if message.role == "system":
+                    prompt_parts.append(f"System: {combined_content}")
+                elif message.role == "user":
+                    prompt_parts.append(f"User: {combined_content}")
+                elif message.role == "assistant":
+                    prompt_parts.append(f"Assistant: {combined_content}")
+        
+        final_prompt = "\n".join(prompt_parts)
+        logger.info(f"Prompt sent to Gemini CLI: {final_prompt}")
+        
+        return final_prompt, temp_files
+    
+    def _save_base64_image(self, data_url: str) -> str:
+        """
+        Save base64 image data to temporary file
+        
+        Args:
+            data_url: Data URL in format "data:image/type;base64,..."
+            
+        Returns:
+            Path to temporary file
+            
+        Raises:
+            ValueError: Invalid data URL format
+        """
+        try:
+            # Parse data URL
+            if not data_url.startswith("data:"):
+                raise ValueError("Invalid data URL format")
+            
+            # Extract MIME type and base64 data
+            header, data = data_url.split(",", 1)
+            mime_info = header.split(";")[0].split(":")[1]  # e.g., "image/png"
+            
+            # Determine file extension
+            if "png" in mime_info.lower():
+                ext = ".png"
+            elif "jpeg" in mime_info.lower() or "jpg" in mime_info.lower():
+                ext = ".jpg"
+            elif "gif" in mime_info.lower():
+                ext = ".gif"
+            elif "webp" in mime_info.lower():
+                ext = ".webp"
+            else:
+                ext = ".png"  # Default to PNG
+            
+            # Decode base64 data
+            image_data = base64.b64decode(data)
+            
+            # Create .gemini-cli-proxy directory in project root
+            project_root = os.getcwd()
+            temp_dir = os.path.join(project_root, ".gemini-cli-proxy")
+            os.makedirs(temp_dir, exist_ok=True)
+            
+            # Create temporary file in project directory
+            filename = f"gemini_img_{uuid.uuid4().hex[:8]}{ext}"
+            temp_file_path = os.path.join(temp_dir, filename)
+            
+            # Write image data
+            with open(temp_file_path, 'wb') as f:
+                f.write(image_data)
+            
+            return temp_file_path
+            
+        except Exception as e:
+            logger.error(f"Error saving base64 image: {e}")
+            raise ValueError(f"Failed to save base64 image: {e}")
+
     def _build_prompt(self, messages: List[ChatMessage]) -> str:
         """
-        Build prompt text
+        Build prompt text (legacy method, kept for compatibility)
         
         Args:
             messages: List of chat messages
@@ -157,18 +276,8 @@ class GeminiClient:
         Returns:
             Formatted prompt text
         """
-        # Simplified implementation: format all messages by role
-        prompt_parts = []
-        
-        for message in messages:
-            if message.role == "system":
-                prompt_parts.append(f"System: {message.content}")
-            elif message.role == "user":
-                prompt_parts.append(f"User: {message.content}")
-            elif message.role == "assistant":
-                prompt_parts.append(f"Assistant: {message.content}")
-        
-        return "\n".join(prompt_parts)
+        prompt, _ = self._build_prompt_with_images(messages)
+        return prompt
 
 
 # Global client instance
