@@ -43,6 +43,12 @@ gemini -p "Hello, Gemini"
 
 ### Start Gemini CLI Proxy
 
+Method 1: Direct startup
+```bash
+uvx gemini-cli-proxy
+```
+
+Method 2: Clone this repository and run:
 ```bash
 uv run gemini-cli-proxy
 ```

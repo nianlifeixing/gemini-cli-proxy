@@ -194,3 +194,4 @@ cython_debug/
 .cursorindexingignoredocs
 
 /local-docs/
+/local-scripts/

@@ -43,6 +43,12 @@ gemini -p "Hello, Gemini"
 
 ### 启动 Gemini CLI Proxy
 
+方法一：直接启动运行
+```bash
+uvx gemini-cli-proxy
+```
+
+方法二：克隆本仓库，然后运行：
 ```bash
 uv run gemini-cli-proxy
 ```
