@@ -28,6 +28,7 @@ class GeminiClient:
         messages: List[ChatMessage],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        user_locale: str = "en-US",
         **kwargs
     ) -> str:
         """
@@ -37,6 +38,7 @@ class GeminiClient:
             messages: List of chat messages
             temperature: Temperature parameter
             max_tokens: Maximum number of tokens
+            user_locale: User locale for response language guidance
             **kwargs: Other parameters
             
         Returns:
@@ -48,7 +50,7 @@ class GeminiClient:
         """
         async with self.semaphore:
             return await self._execute_gemini_command(
-                messages, temperature, max_tokens, **kwargs
+                messages, temperature, max_tokens, user_locale, **kwargs
             )
     
     async def chat_completion_stream(
@@ -56,6 +58,7 @@ class GeminiClient:
         messages: List[ChatMessage],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        user_locale: str = "en-US",
         **kwargs
     ) -> AsyncGenerator[str, None]:
         """
@@ -65,6 +68,7 @@ class GeminiClient:
             messages: List of chat messages
             temperature: Temperature parameter
             max_tokens: Maximum number of tokens
+            user_locale: User locale for response language guidance
             **kwargs: Other parameters
             
         Yields:
@@ -72,7 +76,7 @@ class GeminiClient:
         """
         # First get complete response
         full_response = await self.chat_completion(
-            messages, temperature, max_tokens, **kwargs
+            messages, temperature, max_tokens, user_locale, **kwargs
         )
         
         # Split by lines and yield one by one
@@ -88,6 +92,7 @@ class GeminiClient:
         messages: List[ChatMessage],
         temperature: Optional[float] = None,
         max_tokens: Optional[int] = None,
+        user_locale: str = "en-US",
         **kwargs
     ) -> str:
         """
@@ -97,13 +102,14 @@ class GeminiClient:
             messages: List of chat messages
             temperature: Temperature parameter
             max_tokens: Maximum number of tokens
+            user_locale: User locale for response language guidance
             **kwargs: Other parameters
             
         Returns:
             Command output result
         """
         # Build command arguments and get temporary files
-        prompt, temp_files = self._build_prompt_with_images(messages)
+        prompt, temp_files = self._build_prompt_with_images(messages, user_locale)
         
         cmd_args = [config.gemini_command]
         cmd_args.extend(["--prompt", prompt])
@@ -157,18 +163,21 @@ class GeminiClient:
                     except Exception as e:
                         logger.warning(f"Failed to clean up temp file {temp_file}: {e}")
     
-    def _build_prompt_with_images(self, messages: List[ChatMessage]) -> Tuple[str, List[str]]:
+    def _build_prompt_with_images(self, messages: List[ChatMessage], user_locale: str) -> Tuple[str, List[str]]:
         """
         Build prompt text with image processing
         
         Args:
             messages: List of chat messages
+            user_locale: User locale for response language guidance
             
         Returns:
             Tuple of (formatted prompt text, list of temporary file paths)
         """
         prompt_parts = []
         temp_files = []
+        
+        has_image_file_tags = False
         
         for i, message in enumerate(messages):
             if isinstance(message.content, str):
@@ -192,11 +201,12 @@ class GeminiClient:
                             # Process base64 image
                             temp_file_path = self._save_base64_image(url)
                             temp_files.append(temp_file_path)
-                            content_parts.append(f"<image>{temp_file_path}</image>")
+                            content_parts.append(f"<image_file>{temp_file_path}</image_file>")
+                            has_image_file_tags = True
                         else:
                             # For regular URLs, we'll just pass them through for now
                             # TODO: Download and save remote images if needed
-                            content_parts.append(f"<image>{url}</image>")
+                            content_parts.append(f"<image_url>{url}</image_url>")
                 
                 combined_content = " ".join(content_parts)
                 if message.role == "system":
@@ -205,6 +215,16 @@ class GeminiClient:
                     prompt_parts.append(f"User: {combined_content}")
                 elif message.role == "assistant":
                     prompt_parts.append(f"Assistant: {combined_content}")
+
+        # Add the system prompt at the beginning
+        system_prompt = ""
+        if user_locale:
+            system_prompt += f"Please respond in locale `{user_locale}`."
+        if has_image_file_tags:
+            system_prompt += "For `image_file` tags in the conversation, please read the image from the specified file path instead of taking screenshots."
+
+        if system_prompt:
+            prompt_parts.insert(0, f"System: {system_prompt}")
         
         final_prompt = "\n".join(prompt_parts)
         logger.debug(f"Prompt sent to Gemini CLI: {final_prompt}")
