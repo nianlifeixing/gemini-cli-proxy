@@ -10,6 +10,7 @@ import os
 import tempfile
 import uuid
 import base64
+import re
 from typing import List, Optional, AsyncGenerator, Tuple
 from .models import ChatMessage
 from .config import config
@@ -23,6 +24,39 @@ class GeminiClient:
     def __init__(self):
         self.semaphore = asyncio.Semaphore(config.max_concurrency)
     
+    def _simplify_error_message(self, raw_error: str) -> Optional[str]:
+        """
+        Convert Gemini CLI error messages to more readable user-friendly messages
+        
+        Args:
+            raw_error: Raw error message from Gemini CLI
+            
+        Returns:
+            Simplified error message, or None if the error cannot be recognized
+        """
+        if not raw_error:
+            return None
+            
+        lower_err = raw_error.lower()
+        
+        # Check for rate limiting related keywords
+        rate_limit_indicators = [
+            "code\": 429",
+            "status 429", 
+            "ratelimitexceeded",
+            "resource_exhausted",
+            "quota exceeded",
+            "quota metric",
+            "requests per day",
+            "requests per minute",
+            "limit exceeded"
+        ]
+        
+        if any(keyword in lower_err for keyword in rate_limit_indicators):
+            return "Gemini CLI rate limit exceeded. Please run `gemini` directly to check."
+        
+        return None
+
     async def chat_completion(
         self,
         messages: List[ChatMessage],
@@ -140,7 +174,15 @@ class GeminiClient:
             # Check return code
             if process.returncode != 0:
                 error_msg = stderr.decode('utf-8').strip()
-                raise RuntimeError(f"Gemini CLI execution failed (exit code: {process.returncode}): {error_msg}")
+                
+                # Try to simplify error message to more user-friendly format
+                simplified_msg = self._simplify_error_message(error_msg)
+                if simplified_msg:
+                    logger.warning(f"Gemini CLI error (simplified): {simplified_msg}")
+                    raise RuntimeError(simplified_msg)
+                else:
+                    logger.warning(f"Gemini CLI execution failed: {error_msg}")
+                    raise RuntimeError(f"Gemini CLI execution failed (exit code: {process.returncode}): {error_msg}")
             
             # Return standard output
             result = stdout.decode('utf-8').strip()
@@ -149,10 +191,13 @@ class GeminiClient:
             
         except asyncio.TimeoutError:
             logger.error(f"Gemini CLI command timeout ({config.timeout}s)")
+            raise RuntimeError(f"Gemini CLI execution timeout ({config.timeout} seconds), please retry later or check your network connection")
+        except RuntimeError:
+            # Re-raise already processed RuntimeError
             raise
         except Exception as e:
             logger.error(f"Error executing Gemini CLI command: {e}")
-            raise
+            raise RuntimeError(f"Error executing Gemini CLI command: {str(e)}")
         finally:
             # Clean up temporary files (skip in debug mode)
             if not config.debug:
