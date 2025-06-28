@@ -29,12 +29,12 @@ from .models import (
 )
 from .openai_adapter import openai_adapter
 
-# Configure logging
+# Configure logging (will be updated when config is set)
 logging.basicConfig(
-    level=getattr(logging, config.log_level.upper()),
+    level=logging.INFO,  # Default level, will be updated in CLI
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('gemini_cli_proxy')
 
 # Create rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -43,8 +43,13 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle management"""
+    # Ensure logging level is applied after uvicorn starts
+    import logging
+    logging.getLogger('gemini_cli_proxy').setLevel(getattr(logging, config.log_level.upper()))
+    
     logger.info(f"Starting Gemini CLI Proxy v{__version__}")
     logger.info(f"Configuration: port={config.port}, rate_limit={config.rate_limit}/min, concurrency={config.max_concurrency}")
+    logger.debug(f"Debug logging is enabled (log_level={config.log_level})")
     yield
     logger.info("Shutting down Gemini CLI Proxy")
 

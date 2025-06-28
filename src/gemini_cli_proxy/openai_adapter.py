@@ -20,7 +20,7 @@ from .models import (
 )
 from .gemini_client import gemini_client
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('gemini_cli_proxy')
 
 
 class OpenAIAdapter:

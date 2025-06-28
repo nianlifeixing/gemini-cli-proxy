@@ -9,11 +9,14 @@ class Config:
     """Application configuration class"""
     
     def __init__(self):
+        import os
+        
         # Server configuration
         self.host: str = "127.0.0.1"
         self.port: int = 8765
-        self.log_level: str = "info"
-        self.debug: bool = False
+        # Read from environment variable if available (for reload mode)
+        self.debug: bool = os.environ.get('GEMINI_CLI_PROXY_DEBUG', 'false').lower() == 'true'
+        self.log_level: str = "debug" if self.debug else "info"
         
         # Gemini CLI configuration
         self.gemini_command: str = "gemini"  # Gemini CLI command path

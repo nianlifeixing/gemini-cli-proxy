@@ -21,12 +21,6 @@ import uvicorn
     help="Server port"
 )
 @click.option(
-    "--log-level",
-    default="info",
-    type=click.Choice(["debug", "info", "warning", "error", "critical"]),
-    help="Log level"
-)
-@click.option(
     "--rate-limit",
     default=60,
     type=int,
@@ -52,7 +46,6 @@ import uvicorn
 def main(
     host: str,
     port: int,
-    log_level: str,
     rate_limit: int,
     max_concurrency: int,
     timeout: float,
@@ -61,21 +54,33 @@ def main(
     """Start Gemini CLI Proxy server"""
     
     # Set configuration
+    import os
     from .config import config
+    
+    # Set environment variable for reload mode
+    os.environ['GEMINI_CLI_PROXY_DEBUG'] = str(debug)
+    
     config.host = host
     config.port = port
-    config.log_level = log_level
+    config.log_level = "debug" if debug else "info"
     config.rate_limit = rate_limit
     config.max_concurrency = max_concurrency
     config.timeout = timeout
     config.debug = debug
+    
+    # Update logging level based on configuration
+    import logging
+    # Set root logger level
+    logging.getLogger().setLevel(getattr(logging, config.log_level.upper()))
+    # Also set level for all gemini_cli_proxy loggers
+    logging.getLogger('gemini_cli_proxy').setLevel(getattr(logging, config.log_level.upper()))
     
     # Start server
     uvicorn.run(
         "gemini_cli_proxy.server:app",
         host=host,
         port=port,
-        log_level=log_level,
+        log_level=config.log_level,
         reload=debug
     )
 

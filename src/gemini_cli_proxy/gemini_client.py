@@ -14,7 +14,7 @@ from typing import List, Optional, AsyncGenerator, Tuple
 from .models import ChatMessage
 from .config import config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('gemini_cli_proxy')
 
 
 class GeminiClient:
@@ -138,7 +138,7 @@ class GeminiClient:
             
             # Return standard output
             result = stdout.decode('utf-8').strip()
-            logger.info(f"Gemini CLI response: {result}")
+            logger.debug(f"Gemini CLI response: {result}")
             return result
             
         except asyncio.TimeoutError:
@@ -148,13 +148,14 @@ class GeminiClient:
             logger.error(f"Error executing Gemini CLI command: {e}")
             raise
         finally:
-            # Clean up temporary files
-            for temp_file in temp_files:
-                try:
-                    if os.path.exists(temp_file):
-                        os.unlink(temp_file)
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temp file {temp_file}: {e}")
+            # Clean up temporary files (skip in debug mode)
+            if not config.debug:
+                for temp_file in temp_files:
+                    try:
+                        if os.path.exists(temp_file):
+                            os.unlink(temp_file)
+                    except Exception as e:
+                        logger.warning(f"Failed to clean up temp file {temp_file}: {e}")
     
     def _build_prompt_with_images(self, messages: List[ChatMessage]) -> Tuple[str, List[str]]:
         """
@@ -206,7 +207,7 @@ class GeminiClient:
                     prompt_parts.append(f"Assistant: {combined_content}")
         
         final_prompt = "\n".join(prompt_parts)
-        logger.info(f"Prompt sent to Gemini CLI: {final_prompt}")
+        logger.debug(f"Prompt sent to Gemini CLI: {final_prompt}")
         
         return final_prompt, temp_files
     
