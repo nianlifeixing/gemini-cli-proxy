@@ -8,6 +8,11 @@ import asyncio
 import logging
 import traceback
 from contextlib import asynccontextmanager
+import platform
+
+# Fix for Windows asyncio subprocess issues
+if platform.system() == 'Windows':
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware

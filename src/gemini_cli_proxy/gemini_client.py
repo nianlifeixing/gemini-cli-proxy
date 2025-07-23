@@ -146,56 +146,114 @@ class GeminiClient:
         cmd_args = [config.gemini_command]
         cmd_args.extend(["-m", model])
         cmd_args.extend(["-p", prompt])
-        
+
+        # Add proxy support using gemini CLI's built-in --proxy option
+        if config.use_proxy:
+            proxy_url = f"http://{config.proxy_host}:{config.proxy_port}"
+            cmd_args.extend(["--proxy", proxy_url])
+
         # Note: Real gemini CLI doesn't support temperature and max_tokens parameters
         # We ignore these parameters here but log them
         if temperature is not None:
             logger.debug(f"Ignoring temperature parameter: {temperature} (gemini CLI doesn't support)")
         if max_tokens is not None:
             logger.debug(f"Ignoring max_tokens parameter: {max_tokens} (gemini CLI doesn't support)")
-        
+
+        # Check if gemini command exists and get full path
+        import shutil
+        gemini_path = shutil.which(config.gemini_command)
+        logger.debug(f"Gemini command path: {gemini_path}")
+
+        # Use full path if available, otherwise use original command
+        if gemini_path:
+            cmd_args[0] = gemini_path
+
         logger.debug(f"Executing command: {' '.join(cmd_args)}")
-        
+
         try:
-            # Use asyncio to execute subprocess
-            process = await asyncio.create_subprocess_exec(
-                *cmd_args,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
-            )
-            
-            # Wait for command execution to complete with timeout
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=config.timeout
-            )
-            
-            # Check return code
-            if process.returncode != 0:
-                error_msg = stderr.decode('utf-8').strip()
-                
-                # Try to simplify error message to more user-friendly format
-                simplified_msg = self._simplify_error_message(error_msg)
-                if simplified_msg:
-                    logger.warning(f"Gemini CLI error (simplified): {simplified_msg}")
-                    raise RuntimeError(simplified_msg)
-                else:
-                    logger.warning(f"Gemini CLI execution failed: {error_msg}")
-                    raise RuntimeError(f"Gemini CLI execution failed (exit code: {process.returncode}): {error_msg}")
-            
-            # Return standard output
-            result = stdout.decode('utf-8').strip()
-            logger.debug(f"Gemini CLI response: {result}")
-            return result
-            
-        except asyncio.TimeoutError:
-            logger.error(f"Gemini CLI command timeout ({config.timeout}s)")
-            raise RuntimeError(f"Gemini CLI execution timeout ({config.timeout} seconds), please retry later or check your network connection") from None
+            # Prepare environment
+            env = os.environ.copy()
+
+            logger.debug(f"About to create subprocess with args: {cmd_args}")
+
+            # Use subprocess to execute command (fallback for Windows asyncio issues)
+            try:
+                import subprocess
+                import platform
+
+                logger.debug(f"Using subprocess.run for command execution")
+
+                # Run subprocess synchronously but in thread pool to avoid blocking
+                import concurrent.futures
+
+                def run_subprocess():
+                    if platform.system() == 'Windows':
+                        # Use shell on Windows
+                        shell_cmd = ' '.join(f'"{arg}"' if ' ' in arg else arg for arg in cmd_args)
+                        logger.debug(f"Running shell command: {shell_cmd}")
+                        result = subprocess.run(
+                            shell_cmd,
+                            shell=True,
+                            capture_output=True,
+                            text=True,
+                            env=env,
+                            timeout=config.timeout
+                        )
+                    else:
+                        # Use exec on Unix-like systems
+                        result = subprocess.run(
+                            cmd_args,
+                            capture_output=True,
+                            text=True,
+                            env=env,
+                            timeout=config.timeout
+                        )
+                    return result
+
+                # Run in thread pool to avoid blocking the event loop
+                loop = asyncio.get_event_loop()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    result = await loop.run_in_executor(executor, run_subprocess)
+
+                logger.debug(f"Subprocess completed with return code: {result.returncode}")
+                logger.debug(f"Stdout length: {len(result.stdout)}, Stderr length: {len(result.stderr)}")
+
+                # Check return code
+                if result.returncode != 0:
+                    error_msg = result.stderr.strip()
+                    logger.debug(f"Raw stderr: {repr(error_msg)}")
+
+                    # Try to simplify error message to more user-friendly format
+                    simplified_msg = self._simplify_error_message(error_msg)
+                    if simplified_msg:
+                        logger.warning(f"Gemini CLI error (simplified): {simplified_msg}")
+                        raise RuntimeError(simplified_msg)
+                    else:
+                        logger.warning(f"Gemini CLI execution failed: {error_msg}")
+                        raise RuntimeError(f"Gemini CLI execution failed (exit code: {result.returncode}): {error_msg}")
+
+                # Return standard output
+                response_text = result.stdout.strip()
+                logger.debug(f"Gemini CLI response: {response_text}")
+                return response_text
+
+            except subprocess.TimeoutExpired:
+                logger.error(f"Gemini CLI command timeout ({config.timeout}s)")
+                raise RuntimeError(f"Gemini CLI execution timeout ({config.timeout} seconds), please retry later or check your network connection") from None
+            except Exception as subprocess_error:
+                logger.error(f"Failed to execute subprocess: {subprocess_error}")
+                logger.error(f"Subprocess error type: {type(subprocess_error)}")
+                raise
+
         except RuntimeError:
             # Re-raise already processed RuntimeError
             raise
         except Exception as e:
             logger.error(f"Error executing Gemini CLI command: {e}")
+            logger.error(f"Exception type: {type(e)}")
+            logger.error(f"Exception args: {e.args}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise RuntimeError(f"Error executing Gemini CLI command: {str(e)}") from e
         finally:
             # Clean up temporary files (skip in debug mode)
@@ -210,30 +268,51 @@ class GeminiClient:
     def _build_prompt_with_images(self, messages: List[ChatMessage]) -> Tuple[str, List[str]]:
         """
         Build prompt text with image processing
-        
+
+        For Gemini CLI, we only use the last user message since it's stateless.
+        System messages are included for context.
+
         Args:
             messages: List of chat messages
-            
+
         Returns:
             Tuple of (formatted prompt text, list of temporary file paths)
         """
         prompt_parts = []
         temp_files = []
-        
-        for i, message in enumerate(messages):
+
+        # Find system messages and the last user message
+        system_messages = []
+        last_user_message = None
+
+        for message in messages:
+            if message.role == "system":
+                system_messages.append(message)
+            elif message.role == "user":
+                last_user_message = message  # Keep updating to get the last one
+
+        # Add system messages first
+        for message in system_messages:
             if isinstance(message.content, str):
-                # Simple string content
-                if message.role == "system":
-                    prompt_parts.append(f"System: {message.content}")
-                elif message.role == "user":
-                    prompt_parts.append(f"User: {message.content}")
-                elif message.role == "assistant":
-                    prompt_parts.append(f"Assistant: {message.content}")
+                prompt_parts.append(f"System: {message.content}")
+            else:
+                # Handle complex content for system messages
+                content_parts = []
+                for part in message.content:
+                    if part.type == "text" and part.text:
+                        content_parts.append(part.text)
+                combined_content = " ".join(content_parts)
+                prompt_parts.append(f"System: {combined_content}")
+
+        # Add the last user message
+        if last_user_message:
+            if isinstance(last_user_message.content, str):
+                prompt_parts.append(f"User: {last_user_message.content}")
             else:
                 # List of content parts (vision support)
                 content_parts = []
-                
-                for j, part in enumerate(message.content):
+
+                for part in last_user_message.content:
                     if part.type == "text" and part.text:
                         content_parts.append(part.text)
                     elif part.type == "image_url" and part.image_url:
@@ -247,18 +326,13 @@ class GeminiClient:
                             # For regular URLs, we'll just pass them through for now
                             # TODO: Download and save remote images if needed
                             content_parts.append(f"<image_url>{url}</image_url>")
-                
+
                 combined_content = " ".join(content_parts)
-                if message.role == "system":
-                    prompt_parts.append(f"System: {combined_content}")
-                elif message.role == "user":
-                    prompt_parts.append(f"User: {combined_content}")
-                elif message.role == "assistant":
-                    prompt_parts.append(f"Assistant: {combined_content}")
+                prompt_parts.append(f"User: {combined_content}")
 
         final_prompt = "\n".join(prompt_parts)
         logger.debug(f"Prompt sent to Gemini CLI: {final_prompt}")
-        
+
         return final_prompt, temp_files
     
     def _save_base64_image(self, data_url: str) -> str:
